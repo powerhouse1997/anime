@@ -1,0 +1,1 @@
+# Anilist GraphQL query
