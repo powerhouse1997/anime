@@ -1,0 +1,1 @@
+print('Start the bot')
