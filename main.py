@@ -23,6 +23,8 @@ def get_live_score(ipl_only=False):
         return "No live matches found."
 
     result = ""
+    found_ipl = False
+
     for match in matches:
         title_tag = match.find('a')
         score_tag = match.find('div', class_='cb-col cb-col-100 cb-ltst-wgt-hdr')
@@ -30,13 +32,18 @@ def get_live_score(ipl_only=False):
 
         if title_tag and score_tag:
             title = title_tag.text.strip()
-            if ipl_only and "ipl" not in title.lower():
-                continue
+            if ipl_only:
+                if "ipl" not in title.lower():
+                    continue
+                found_ipl = True
+
             score = score_tag.text.strip()
             status = status_tag.text.strip() if status_tag else ''
             result += f"<b>{title}</b>\n{score}\n<i>{status}</i>\n\n"
 
-    return result or ("No IPL live matches right now." if ipl_only else "No live matches right now.")
+    if ipl_only and not found_ipl:
+        return "No IPL live matches right now."
+    return result or "No live matches right now."
 
 def get_upcoming_matches():
     url = "https://www.cricbuzz.com/cricket-series/7607/indian-premier-league-2025/matches"
