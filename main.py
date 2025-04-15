@@ -1,7 +1,6 @@
 import os
 import asyncio
 import requests
-from bs4 import BeautifulSoup
 from fastapi import FastAPI, Request
 from contextlib import asynccontextmanager
 
@@ -13,6 +12,7 @@ from aiogram.client.default import DefaultBotProperties
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_BOT_TOKEN")
 WEBHOOK_URL = os.getenv("DOMAIN", "https://your-app-name.up.railway.app") + "/webhook"
+RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY", "375989156amshe0be74b7c18e841p115957jsn6b270db10190")
 
 bot = Bot(
     token=BOT_TOKEN,
@@ -21,71 +21,39 @@ bot = Bot(
 dp = Dispatcher(storage=MemoryStorage())
 active_chats = set()
 
+MATCH_ID = "41881"  # Example match ID, replace with dynamic if needed
 
-def get_live_score(ipl_only=False):
+
+def get_live_commentary():
     try:
-        url = 'https://www.cricbuzz.com/cricket-match/live-scores'
-        response = requests.get(url, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        matches = soup.find_all('div', class_='cb-mtch-lst cb-col cb-col-100 cb-tms-itm')
-        if not matches:
-            return "No live matches found."
+        url = f"https://cricbuzz-cricket.p.rapidapi.com/mcenter/v1/{MATCH_ID}/comm"
+        headers = {
+            "x-rapidapi-host": "cricbuzz-cricket.p.rapidapi.com",
+            "x-rapidapi-key": RAPIDAPI_KEY
+        }
+        response = requests.get(url, headers=headers, timeout=10)
+        data = response.json()
 
-        result = ""
-        found_ipl = False
-        for match in matches:
-            title_tag = match.find('a')
-            score_tag = match.find('div', class_='cb-col cb-col-100 cb-ltst-wgt-hdr')
-            status_tag = match.find('div', class_='cb-text-live') or match.find('div', class_='cb-text-complete')
+        comm_list = data.get("comm_lines", [])
+        if not comm_list:
+            return "No live commentary available."
 
-            if title_tag and score_tag:
-                title = title_tag.text.strip()
-                if ipl_only and "ipl" not in title.lower():
-                    continue
-                if "ipl" in title.lower():
-                    found_ipl = True
-                score = score_tag.text.strip()
-                status = status_tag.text.strip() if status_tag else ''
-                result += f"<b>{title}</b>\n{score}\n<i>{status}</i>\n\n"
+        latest_comm = comm_list[0]
+        over = latest_comm.get("over_number", "")
+        comm_text = latest_comm.get("comm", "No text")
 
-        if ipl_only and not found_ipl:
-            return "No IPL live matches right now."
-        return result or "No live matches right now."
+        return f"<b>Live Commentary</b>\nOver: <i>{over}</i>\n{comm_text}"
     except Exception as e:
-        print(f"[get_live_score] Error: {e}")
-        return "Failed to fetch live scores."
-
-
-def get_upcoming_matches():
-    try:
-        url = "https://www.cricbuzz.com/cricket-series/7607/indian-premier-league-2025/matches"
-        response = requests.get(url, timeout=10)
-        soup = BeautifulSoup(response.text, "html.parser")
-        match_blocks = soup.select("div.cb-col.cb-col-100.cb-bg-white.cbs-mtchs-tm")
-        if not match_blocks:
-            return "No upcoming IPL matches found."
-
-        upcoming = []
-        for block in match_blocks[:5]:
-            teams = block.select_one("a.cb-text-link")
-            date = block.select_one("div.schedule-date")
-            if teams and date:
-                upcoming.append(f"<b>{teams.text.strip()}</b>\n<i>{date.text.strip()}</i>")
-
-        return "\n\n".join(upcoming) or "No upcoming IPL matches found."
-    except Exception as e:
-        print(f"[get_upcoming_matches] Error: {e}")
-        return "Failed to fetch upcoming matches."
+        print(f"[get_live_commentary] Error: {e}")
+        return "Failed to fetch live commentary."
 
 
 @dp.message(F.text.in_({"/start", "/help"}))
 async def start_handler(message: Message):
     await message.answer(
-        "Welcome to the IPL Live Score Bot!\n\n"
+        "Welcome to the Cricket Live Score Bot!\n\n"
         "Commands:\n"
-        "/score - All live matches\n"
-        "/live - Only IPL live matches\n"
-        "/upcoming - Upcoming IPL matches\n"
+        "/score - Live commentary\n"
         "/stop - Stop auto updates"
     )
 
@@ -93,20 +61,8 @@ async def start_handler(message: Message):
 @dp.message(F.text == "/score")
 async def score_handler(message: Message):
     active_chats.add(message.chat.id)
-    score = get_live_score()
+    score = get_live_commentary()
     await message.answer(score)
-
-
-@dp.message(F.text == "/live")
-async def live_handler(message: Message):
-    ipl_score = get_live_score(ipl_only=True)
-    await message.answer(ipl_score)
-
-
-@dp.message(F.text == "/upcoming")
-async def upcoming_handler(message: Message):
-    matches = get_upcoming_matches()
-    await message.answer(matches)
 
 
 @dp.message(F.text == "/stop")
@@ -122,7 +78,7 @@ async def auto_send_scores():
     while True:
         try:
             if active_chats:
-                score = get_live_score(ipl_only=True)
+                score = get_live_commentary()
                 for chat_id in active_chats:
                     try:
                         await bot.send_message(chat_id, score)
