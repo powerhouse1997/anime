@@ -1,20 +1,31 @@
+import asyncio
 import os
 import requests
-from aiogram import Bot, Dispatcher
-from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.client.default import DefaultBotProperties
-from aiogram import F
+from aiogram import Bot, Dispatcher, F
 from aiogram.enums import ParseMode
 from aiogram.types import Message
-import asyncio
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.client.default import DefaultBotProperties
 
+# Bot credentials
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_BOT_TOKEN")
 RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY", "YOUR_RAPIDAPI_KEY")
 
+# Bot and Dispatcher setup
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher(storage=MemoryStorage())
 
-# Function to fetch live cricket scores
+# Command handlers
+@dp.message(F.text.in_({"/start", "/help"}))
+async def start_handler(message: Message):
+    await message.answer("Welcome! Use /score to get live cricket scores.")
+
+@dp.message(F.text == "/score")
+async def score_handler(message: Message):
+    scores = get_live_score()
+    await message.answer(scores)
+
+# Live cricket score fetcher
 def get_live_score():
     try:
         headers = {
@@ -24,38 +35,31 @@ def get_live_score():
         url = "https://cricbuzz-cricket.p.rapidapi.com/matches/v1/live"
         response = requests.get(url, headers=headers, timeout=10)
         data = response.json()
+
         matches = data.get("matches", [])
         if not matches:
-            return "No live matches found."
+            return "No live matches right now."
 
-        result = ""
+        msg = ""
         for match in matches:
-            team1 = match["team1"].get("name", "")
-            team2 = match["team2"].get("name", "")
-            match_desc = match.get("matchDesc", "")
+            team1 = match.get("team1", {}).get("name", "")
+            team2 = match.get("team2", {}).get("name", "")
+            desc = match.get("matchDesc", "")
             status = match.get("status", "")
-            score = match.get("score", [])
-            score_lines = [score.get("inningScore", "") for score in score if score.get("inningScore")]
+            scores = match.get("score", [])
+            score_lines = [s.get("inningScore", "") for s in scores if s.get("inningScore")]
 
-            title = f"{team1} vs {team2} ({match_desc})"
-            result += f"<b>{title}</b>\n" + "\n".join(score_lines) + f"\n<i>{status}</i>\n\n"
+            title = f"<b>{team1} vs {team2}</b> ({desc})"
+            msg += f"{title}\n" + "\n".join(score_lines) + f"\n<i>{status}</i>\n\n"
 
-        return result if result else "No live matches right now."
+        return msg.strip()
     except Exception as e:
-        print(f"[get_live_score] Error: {e}")
+        print(f"Error: {e}")
         return "Failed to fetch live scores."
 
-# Command to get live score
-@dp.message(F.text.in_({"/start", "/help"}))
-async def start_handler(message: Message):
-    await message.answer("Welcome to the Cricket Live Score Bot! Use /score to get live scores.")
-
-@dp.message(F.text == "/score")
-async def score_handler(message: Message):
-    live_scores = get_live_score()
-    await message.answer(live_scores)
-
+# Delete webhook if set, then start polling
 async def main():
+    await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
