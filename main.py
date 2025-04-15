@@ -1,6 +1,6 @@
 # main.py
 
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, F
 from aiogram.enums import ParseMode
 from aiogram.types import Message
 from bs4 import BeautifulSoup
@@ -8,7 +8,7 @@ import requests
 import asyncio
 import os
 
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # Or replace with your token directly for testing
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # Or paste your token directly for testing
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
@@ -34,11 +34,12 @@ def get_live_score():
             result += f"<b>{title}</b>\n{score}\n<i>{status}</i>\n\n"
     return result or "No live matches right now."
 
-@dp.message(commands=["start", "help"])
+@dp.message(F.text == "/start")
+@dp.message(F.text == "/help")
 async def start_handler(message: Message):
     await message.answer("Welcome to the IPL Live Score Bot!\nUse /score to get the latest match updates.")
 
-@dp.message(commands=["score"])
+@dp.message(F.text == "/score")
 async def score_handler(message: Message):
     score = get_live_score()
     await message.answer(score, parse_mode=ParseMode.HTML)
