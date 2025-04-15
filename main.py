@@ -1,5 +1,4 @@
 import asyncio
-import url
 from aiogram import Bot, Dispatcher, F
 from aiogram.enums import ParseMode
 from aiogram.types import Message
