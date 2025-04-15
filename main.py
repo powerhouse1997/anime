@@ -6,6 +6,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram import F
 from aiogram.enums import ParseMode
 from aiogram.types import Message
+import asyncio
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_BOT_TOKEN")
 RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY", "YOUR_RAPIDAPI_KEY")
@@ -54,6 +55,8 @@ async def score_handler(message: Message):
     live_scores = get_live_score()
     await message.answer(live_scores)
 
-if __name__ == '__main__':
-    from aiogram import executor
-    executor.start_polling(dp)
+async def main():
+    await dp.start_import asyncio
+
+if __name__ == "__main__":
+    asyncio.run(main())
