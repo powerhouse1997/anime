@@ -13,6 +13,9 @@ RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY", "YOUR_RAPIDAPI_KEY")
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher(storage=MemoryStorage())
 
+response = requests.get(url, headers=headers, timeout=10)
+print(response.json())  # Inspect the raw JSON response
+
 @dp.message(F.text.in_({"/start", "/help"}))
 async def start_handler(message: Message):
     await message.answer("Welcome! Use /score to get live cricket scores.")
