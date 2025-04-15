@@ -56,7 +56,7 @@ async def score_handler(message: Message):
     await message.answer(live_scores)
 
 async def main():
-    await dp.start_import asyncio
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
