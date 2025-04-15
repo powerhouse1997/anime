@@ -24,28 +24,54 @@ active_chats = set()
 MATCH_ID = "41881"  # Example match ID, replace with dynamic if needed
 
 
-def get_live_commentary():
+def get_live_score(ipl_only=False):
     try:
-        url = f"https://cricbuzz-cricket.p.rapidapi.com/mcenter/v1/{MATCH_ID}/comm"
         headers = {
             "x-rapidapi-host": "cricbuzz-cricket.p.rapidapi.com",
-            "x-rapidapi-key": RAPIDAPI_KEY
+            "x-rapidapi-key": os.getenv("RAPIDAPI_KEY", "375989156amshe0be74b7c18e841p115957jsn6b270db10190")
         }
+        url = "https://cricbuzz-cricket.p.rapidapi.com/matches/v1/live"
         response = requests.get(url, headers=headers, timeout=10)
         data = response.json()
 
-        comm_list = data.get("comm_lines", [])
-        if not comm_list:
-            return "No live commentary available."
+        matches = data.get("matches", [])
+        if not matches:
+            return "No live matches found."
 
-        latest_comm = comm_list[0]
-        over = latest_comm.get("over_number", "")
-        comm_text = latest_comm.get("comm", "No text")
+        result = ""
+        found_ipl = False
 
-        return f"<b>Live Commentary</b>\nOver: <i>{over}</i>\n{comm_text}"
+        for match in matches:
+            series_name = match.get("seriesName", "")
+            team1 = match["team1"].get("name", "")
+            team2 = match["team2"].get("name", "")
+            match_desc = match.get("matchDesc", "")
+            status = match.get("status", "")
+            scores = match.get("score", [])
+
+            score_lines = []
+            for score in scores:
+                team = score.get("teamId", "")
+                inning = score.get("inningScore", "")
+                if inning:
+                    score_lines.append(inning)
+
+            title = f"{team1} vs {team2} ({match_desc})"
+
+            if ipl_only and "ipl" not in series_name.lower():
+                continue
+            if "ipl" in series_name.lower():
+                found_ipl = True
+
+            result += f"<b>{title}</b>\n" + "\n".join(score_lines) + f"\n<i>{status}</i>\n\n"
+
+        if ipl_only and not found_ipl:
+            return "No IPL live matches right now."
+
+        return result or "No live matches right now."
     except Exception as e:
-        print(f"[get_live_commentary] Error: {e}")
-        return "Failed to fetch live commentary."
+        print(f"[get_live_score] Error: {e}")
+        return "Failed to fetch live scores."
 
 
 @dp.message(F.text.in_({"/start", "/help"}))
