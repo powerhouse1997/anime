@@ -12,6 +12,8 @@ BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # Or paste your token directly for 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
+await bot.delete_webhook(drop_pending_updates=True)
+
 def get_live_score():
     url = 'https://www.cricbuzz.com/cricket-match/live-scores'
     response = requests.get(url)
