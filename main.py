@@ -3,6 +3,8 @@ import asyncio
 import requests
 from bs4 import BeautifulSoup
 from fastapi import FastAPI, Request
+from contextlib import asynccontextmanager
+
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, Update
 from aiogram.enums import ParseMode
@@ -17,7 +19,6 @@ bot = Bot(
     default=DefaultBotProperties(parse_mode=ParseMode.HTML)
 )
 dp = Dispatcher(storage=MemoryStorage())
-app = FastAPI()
 active_chats = set()
 
 
@@ -38,11 +39,10 @@ def get_live_score(ipl_only=False):
 
         if title_tag and score_tag:
             title = title_tag.text.strip()
-            if ipl_only:
-                if "ipl" not in title.lower():
-                    continue
+            if ipl_only and "ipl" not in title.lower():
+                continue
+            if "ipl" in title.lower():
                 found_ipl = True
-
             score = score_tag.text.strip()
             status = status_tag.text.strip() if status_tag else ''
             result += f"<b>{title}</b>\n{score}\n<i>{status}</i>\n\n"
@@ -122,10 +122,14 @@ async def auto_send_scores():
         await asyncio.sleep(60)
 
 
-@app.on_event("startup")
-async def on_startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     await bot.set_webhook(WEBHOOK_URL)
     asyncio.create_task(auto_send_scores())
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 @app.post("/webhook")
