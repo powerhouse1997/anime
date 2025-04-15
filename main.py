@@ -3,6 +3,7 @@ import requests
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.client.default import DefaultBotProperties
+from aiogram import F
 from aiogram.enums import ParseMode
 from aiogram.types import Message
 
