@@ -3,10 +3,9 @@ import html
 import aiohttp
 import asyncio
 import xml.etree.ElementTree as ET
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message
 from aiogram.enums import ParseMode
-from aiogram.utils.markdown import hlink
 from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
 
@@ -47,11 +46,11 @@ def format_news_item(item):
     date = html.escape(item["date"])
     return f"<b>{title}</b>\n🗓️ {date}\n<a href='{link}'>Read more</a>"
 
-@dp.message(commands=["start"])
+@dp.message(F.text == "/start")
 async def cmd_start(message: Message):
     await message.answer("👋 Welcome! Use /news to get the latest anime news from Anime News Network.")
 
-@dp.message(commands=["news"])
+@dp.message(F.text == "/news")
 async def cmd_news(message: Message):
     await message.answer("📰 Fetching anime news...")
     news_list = await get_ann_news()
