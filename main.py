@@ -4,15 +4,23 @@ import aiohttp
 import asyncio
 import xml.etree.ElementTree as ET
 from aiogram import Bot, Dispatcher, types
-from aiogram.utils import executor
+from aiogram.types import Message
+from aiogram.enums import ParseMode
+from aiogram.utils.markdown import hlink
+from aiogram.client.default import DefaultBotProperties
+from aiogram.fsm.storage.memory import MemoryStorage
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "your-telegram-bot-token-here")
 ANN_NEWS_URL = "https://www.animenewsnetwork.com/all/rss.xml"
 
-bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
-dp = Dispatcher(bot)
+# Initialize bot with default HTML parse mode
+bot = Bot(
+    token=BOT_TOKEN,
+    default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+)
+dp = Dispatcher(storage=MemoryStorage())
 
-# Parse ANN's RSS feed and return a list of news items
+# Fetch and parse ANN RSS feed
 async def get_ann_news():
     async with aiohttp.ClientSession() as session:
         async with session.get(ANN_NEWS_URL) as resp:
@@ -39,20 +47,23 @@ def format_news_item(item):
     date = html.escape(item["date"])
     return f"<b>{title}</b>\n🗓️ {date}\n<a href='{link}'>Read more</a>"
 
-@dp.message_handler(commands=["start"])
-async def start(message: types.Message):
+@dp.message(commands=["start"])
+async def cmd_start(message: Message):
     await message.answer("👋 Welcome! Use /news to get the latest anime news from Anime News Network.")
 
-@dp.message_handler(commands=["news"])
-async def news(message: types.Message):
+@dp.message(commands=["news"])
+async def cmd_news(message: Message):
     await message.answer("📰 Fetching anime news...")
     news_list = await get_ann_news()
     if not news_list:
         await message.answer("❌ Couldn't fetch news right now.")
         return
-
-    for item in news_list[:5]:  # top 5
+    for item in news_list[:5]:
         await message.answer(format_news_item(item), disable_web_page_preview=False)
 
+# Main entry point
+async def main():
+    await dp.start_polling(bot)
+
 if __name__ == "__main__":
-    executor.start_polling(dp)
+    asyncio.run(main())
