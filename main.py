@@ -1,78 +1,58 @@
+import os
+import html
+import aiohttp
 import asyncio
-from aiogram import Bot, Dispatcher, F
-from aiogram.enums import ParseMode
-from aiogram.types import Message
-from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.client.default import DefaultBotProperties
-import os
-import requests
+import xml.etree.ElementTree as ET
+from aiogram import Bot, Dispatcher, types
+from aiogram.utils import executor
 
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_BOT_TOKEN")
-RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY", "YOUR_RAPIDAPI_KEY")
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "your-telegram-bot-token-here")
+ANN_NEWS_URL = "https://www.animenewsnetwork.com/all/rss.xml"
 
-bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-dp = Dispatcher(storage=MemoryStorage())
+bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
+dp = Dispatcher(bot)
 
-@dp.message(F.text.in_({"/start", "/help"}))
-async def start_handler(message: Message):
-    await message.answer("Welcome! Use /score to get live cricket scores.")
+# Parse ANN's RSS feed and return a list of news items
+async def get_ann_news():
+    async with aiohttp.ClientSession() as session:
+        async with session.get(ANN_NEWS_URL) as resp:
+            if resp.status != 200:
+                return []
+            text = await resp.text()
+            root = ET.fromstring(text)
+            items = root.findall(".//item")
+            news = []
+            for item in items:
+                title = item.find("title").text
+                link = item.find("link").text
+                pub_date = item.find("pubDate").text
+                news.append({
+                    "title": title,
+                    "link": link,
+                    "date": pub_date
+                })
+            return news
 
-@dp.message(F.text == "/score")
-async def score_handler(message: Message):
-    await message.answer(get_live_score())
+def format_news_item(item):
+    title = html.escape(item["title"])
+    link = html.escape(item["link"])
+    date = html.escape(item["date"])
+    return f"<b>{title}</b>\n🗓️ {date}\n<a href='{link}'>Read more</a>"
 
-import requests
-import os
+@dp.message_handler(commands=["start"])
+async def start(message: types.Message):
+    await message.answer("👋 Welcome! Use /news to get the latest anime news from Anime News Network.")
 
-RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")  # Or set it directly if you're testing
+@dp.message_handler(commands=["news"])
+async def news(message: types.Message):
+    await message.answer("📰 Fetching anime news...")
+    news_list = await get_ann_news()
+    if not news_list:
+        await message.answer("❌ Couldn't fetch news right now.")
+        return
 
-def get_live_score():
-    try:
-        if not RAPIDAPI_KEY:
-            return "API key not set. Please configure RAPIDAPI_KEY."
-
-        headers = {
-            "X-RapidAPI-Host": "cricbuzz-cricket.p.rapidapi.com",
-            "X-RapidAPI-Key": RAPIDAPI_KEY
-        }
-        url = "https://cricbuzz-cricket.p.rapidapi.com/matches/v1/live"
-
-        response = requests.get(url, headers=headers, timeout=10)
-        data = response.json()
-
-        matches = data.get("matches", [])
-        if not matches:
-            return "No live matches right now."
-
-        result = ""
-        for match in matches[:3]:  # Limit to 3 matches
-            team1 = match.get("team1", {}).get("name", "Team 1")
-            team2 = match.get("team2", {}).get("name", "Team 2")
-            desc = match.get("matchDesc", "Match")
-            status = match.get("status", "Status Unknown")
-            scores = match.get("score", [])
-            score_lines = [s.get("inningScore", "") for s in scores if s.get("inningScore")]
-
-            result += f"<b>{team1} vs {team2}</b> ({desc})\n"
-            if score_lines:
-                result += "\n".join(score_lines) + "\n"
-            result += f"<i>{status}</i>\n\n"
-
-        return result.strip() or "Live data not available."
-    
-    except Exception as e:
-        return f"Error fetching score: {str(e)}"
-
-async def delete_webhook_first():
-    print("Deleting existing webhook...")
-    await bot.delete_webhook(drop_pending_updates=True)
-    print("Webhook deleted.")
-
-async def main():
-    await delete_webhook_first()
-    await dp.start_polling(bot)
+    for item in news_list[:5]:  # top 5
+        await message.answer(format_news_item(item), disable_web_page_preview=False)
 
 if __name__ == "__main__":
-    asyncio.run(main())
-
-print(response.json())
+    executor.start_polling(dp)
