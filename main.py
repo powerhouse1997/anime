@@ -96,15 +96,14 @@ def format_news_item(item):
     link = html.escape(item["link"])
     date = html.escape(item["date"])
     return (
-        f"🌸 <b><u>{title}</u></b> 🌸\n\n"
-        f"📅 <b>Published on:</b> <code>{date}</code>\n\n"
-        f"🧡 <b>Latest Update:</b>\n\n"
-        f"🔗 <a href='{link}'>Click to read full story</a>\n\n"
-        f"☁️ <i>Take a gentle pause and enjoy the latest anime happenings.</i>\n\n"
+        f"🌸 *_{title}_* 🌸\n\n"
+        f"📅 *Published on:* `{date}`\n\n"
+        f"🧡 *Latest Update:*\n\n"
+        f"🔗 [Click to read full story]({link})\n\n"
+        f"☁️ _Take a gentle pause and enjoy the latest anime happenings._\n\n"
         f"💬 Share your feelings with the community!\n\n"
-        f"#SliceOfLife #AnimeNews"
+        f"#AnimeNews"
     )
-
 
 @dp.message(F.text == "/start")
 async def cmd_start(message: Message):
