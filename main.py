@@ -14,7 +14,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from aiogram.exceptions import TelegramRetryAfter
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "your-telegram-bot-token-here")
-CHANNEL_ID = os.getenv("CHAT_ID", "your-chat-id").split(",")
+CHANNEL_IDS = os.getenv("CHAT_IDS", "your-chat-id").split(",")
+PINNABLE_ID = os.getenv("PIN_ID", CHANNEL_IDS[0])
 ANN_NEWS_URL = "https://www.animenewsnetwork.com/all/rss.xml"
 NEWS_CACHE_FILE = "sent_ann_news.json"
 
@@ -96,29 +97,30 @@ def format_news_item(item):
     link = html.escape(item["link"])
     date = html.escape(item["date"])
     return (
-        f"🌸 * {title} * 🌸\n\n"
-        f"📅 *Published on:* `{date}`\n\n"
-        f"🧡 *Latest Update:*\n\n"
-        f"🔗 [Click to read full story]({link})\n\n"
-        f"☁️ _Take a gentle pause and enjoy the latest anime happenings._\n\n"
-        f"💬 Share your feelings with the community!\n\n"
+        f"\U0001F338 *{title}* \U0001F338\n\n"
+        f"\U0001F4C5 *Published on:* `{date}`\n\n"
+        f"\U0001F9E1 *Latest Update:*\n\n"
+        f"\U0001F517 [Click to read full story]({link})\n\n"
+        f"\u2601\ufe0f _Take a gentle pause and enjoy the latest anime happenings._\n\n"
+        f"\U0001F4AC Share your feelings with the community!\n\n"
         f"#AnimeNews"
     )
 
 @dp.message(F.text == "/start")
 async def cmd_start(message: Message):
-    await message.answer("👋 Welcome! Use /news to get the latest anime news from Anime News Network.")
+    await message.answer("\U0001F44B Welcome! Use /news to get the latest anime news from Anime News Network.")
 
 @dp.message(F.text == "/news")
 async def cmd_news(message: Message):
-    await message.answer("📰 Fetching the latest anime news...")
+    await message.answer("\U0001F4F0 Fetching the latest anime news...")
     news_list = await get_ann_news()
     if not news_list:
-        await message.answer("❌ Couldn't fetch news right now.")
+        await message.answer("\u274C Couldn't fetch news right now.")
         return
     for item in news_list[:5]:
-        await try_send_news(chat_id=message.chat.id, item=item)
-        await asyncio.sleep(1.5)
+        for chat_id in CHANNEL_IDS:
+            await try_send_news(chat_id=chat_id.strip(), item=item)
+            await asyncio.sleep(1.5)
 
 # Retry-safe message/photo sender with optional pinning
 async def try_send_news(chat_id, item):
@@ -130,8 +132,7 @@ async def try_send_news(chat_id, item):
             else:
                 msg = await bot.send_message(chat_id=chat_id, text=format_news_item(item), disable_web_page_preview=False)
 
-            # Automatically pin first message in channel
-            if chat_id == CHANNEL_ID and attempt == 0:
+            if chat_id == PINNABLE_ID and attempt == 0:
                 try:
                     await bot.pin_chat_message(chat_id=chat_id, message_id=msg.message_id, disable_notification=True)
                 except Exception as pin_error:
@@ -150,7 +151,8 @@ async def check_and_send_news():
     news_list = await get_ann_news()
     for item in news_list:
         if item["link"] not in sent_cache:
-            await try_send_news(chat_id=CHANNEL_ID, item=item)
+            for chat_id in CHANNEL_IDS:
+                await try_send_news(chat_id=chat_id.strip(), item=item)
             sent_cache.append(item["link"])
             save_cache()
             await asyncio.sleep(2)
