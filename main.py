@@ -70,19 +70,17 @@ async def get_ann_news():
                 })
             return news
 
-# Enhanced polished message with thumbnail (if available)
+# Shonen-style themed message
 def format_news_item(item):
     title = html.escape(item["title"])
     link = html.escape(item["link"])
     date = html.escape(item["date"])
     return (
-        f"<b>✨ Latest Anime Update ✨</b>\n"
-        f"<i>Stay informed with the freshest news!</i>\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"<b>📰 Title:</b> <i>{title}</i>\n"
-        f"<b>📅 Date:</b> {date}\n"
-        f"<b>🔗 <a href='{link}'>Read Full Article Here</a></b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━"
+        f"🔥 <b><u>🔥 BREAKING ANIME NEWS 🔥</u></b>\n"
+        f"💥 <b>Title:</b> <i>{title}</i>\n"
+        f"🕒 <b>Date:</b> {date}\n"
+        f"🚀 <a href='{link}'>Read the full hype</a>\n"
+        f"🏆 Stay tuned, hero!"
     )
 
 @dp.message(F.text == "/start")
