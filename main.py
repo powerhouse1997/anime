@@ -60,7 +60,12 @@ def format_news_item(item):
     title = html.escape(item["title"])
     link = html.escape(item["link"])
     date = html.escape(item["date"])
-    return f"<b>{title}</b>\n🗓️ {date}\n<a href='{link}'>Read more</a>"
+    return (
+        f"<b>📰 New Anime News!</b>\n\n"
+        f"<b>🧾 Title:</b> {title}\n"
+        f"<b>📅 Published:</b> {date}\n\n"
+        f"<a href='{link}'>🔗 Read Full Article</a>"
+    )
 
 @dp.message(F.text == "/start")
 async def cmd_start(message: Message):
@@ -68,7 +73,7 @@ async def cmd_start(message: Message):
 
 @dp.message(F.text == "/news")
 async def cmd_news(message: Message):
-    await message.answer("📰 Fetching anime news...")
+    await message.answer("📰 Fetching the latest anime news...")
     news_list = await get_ann_news()
     if not news_list:
         await message.answer("❌ Couldn't fetch news right now.")
@@ -82,7 +87,7 @@ async def check_and_send_news():
     for item in news_list:
         if item["link"] not in sent_cache:
             try:
-                await bot.send_message(chat_id=os.getenv("CHAT_ID", "your-chat-id"), text=format_news_item(item), disable_web_page_preview=False)
+                await bot.send_message(chat_id=os.getenv("NEWS_CHAT_ID", "your-chat-id"), text=format_news_item(item), disable_web_page_preview=False)
                 sent_cache.append(item["link"])
                 save_cache()
             except Exception as e:
