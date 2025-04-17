@@ -4,6 +4,7 @@ import aiohttp
 import asyncio
 import xml.etree.ElementTree as ET
 import json
+from datetime import datetime
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, InputMediaPhoto
 from aiogram.enums import ParseMode
@@ -51,6 +52,13 @@ async def get_ann_news():
                 pub_date = item.find("pubDate").text
                 description = item.find("description").text
 
+                # Format date
+                try:
+                    dt = datetime.strptime(pub_date, "%a, %d %b %Y %H:%M:%S %z")
+                    formatted_date = dt.strftime("%Y-%m-%d %H:%M UTC")
+                except:
+                    formatted_date = pub_date
+
                 # Try to extract an image URL from description (if present)
                 img_link = None
                 if description and "<img" in description:
@@ -65,7 +73,7 @@ async def get_ann_news():
                 news.append({
                     "title": title,
                     "link": link,
-                    "date": pub_date,
+                    "date": formatted_date,
                     "image": img_link
                 })
             return news
