@@ -6,13 +6,15 @@ import xml.etree.ElementTree as ET
 import json
 from datetime import datetime
 from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message, InputMediaPhoto
+from aiogram.types import Message
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from aiogram.exceptions import TelegramRetryAfter
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "your-telegram-bot-token-here")
+CHANNEL_ID = os.getenv("CHAT_ID", "your-chat-id")
 ANN_NEWS_URL = "https://www.animenewsnetwork.com/all/rss.xml"
 NEWS_CACHE_FILE = "sent_ann_news.json"
 
@@ -78,38 +80,44 @@ async def get_ann_news():
                 })
             return news
 
-# Slice of Life - Soft Vibes style
+# Format news item
 
 def format_news_item(item):
     title = html.escape(item["title"])
     link = html.escape(item["link"])
     date = html.escape(item["date"])
     return (
-        f"🌸 <b><u>{title}</u></b> 🌸\n\n"
-        f"📅 <b>Published on:</b> <code>{date}</code>\n\n"
-        f"🧡 <b>Latest Update:</b>\n\n"
-        f"🔗 <a href='{link}'>Click to read full story</a>\n\n"
-        f"☁️ <i>Take a gentle pause and enjoy the latest anime happenings.</i>\n\n"
-        f"💬 Share your feelings with the community!\n\n"
-        f"#SliceOfLife #AnimeNews"
+        f"\ud83c\udf38 <b><u>{title}</u></b> \ud83c\udf38\n\n"
+        f"\ud83d\udcc5 <b>Published on:</b> <code>{date}</code>\n\n"
+        f"\ud83e\udda1 <b>Latest Update:</b>\n\n"
+        f"\ud83d\udd17 <a href='{link}'>Click to read full story</a>\n\n"
+        f"\u2601\ufe0f <i>Take a gentle pause and enjoy the latest anime happenings.</i>\n\n"
+        f"\ud83d\udcac Share your feelings with the community!\n\n"
+        f"#AnimeNews"
     )
 
 @dp.message(F.text == "/start")
 async def cmd_start(message: Message):
-    await message.answer("👋 Welcome! Use /news to get the latest anime news from Anime News Network.")
+    await message.answer("\ud83d\udc4b Welcome! Use /news to get the latest anime news from Anime News Network.")
 
 @dp.message(F.text == "/news")
 async def cmd_news(message: Message):
-    await message.answer("📰 Fetching the latest anime news...")
+    await message.answer("\ud83d\udcf0 Fetching the latest anime news...")
     news_list = await get_ann_news()
     if not news_list:
-        await message.answer("❌ Couldn't fetch news right now.")
+        await message.answer("\u274c Couldn't fetch news right now.")
         return
     for item in news_list[:5]:
-        if item.get("image"):
-            await message.answer_photo(photo=item["image"], caption=format_news_item(item))
-        else:
-            await message.answer(format_news_item(item), disable_web_page_preview=False)
+        try:
+            if item.get("image"):
+                await message.answer_photo(photo=item["image"], caption=format_news_item(item))
+            else:
+                await message.answer(format_news_item(item), disable_web_page_preview=False)
+            await asyncio.sleep(1.5)  # slight delay to prevent flooding
+        except TelegramRetryAfter as e:
+            await asyncio.sleep(e.retry_after)
+        except Exception as e:
+            print(f"Failed to send message: {e}")
 
 # Automatically check and send new news
 async def check_and_send_news():
@@ -118,11 +126,16 @@ async def check_and_send_news():
         if item["link"] not in sent_cache:
             try:
                 if item.get("image"):
-                    await bot.send_photo(chat_id=os.getenv("CHAT_ID", "your-chat-id"), photo=item["image"], caption=format_news_item(item))
+                    await bot.send_photo(chat_id=CHANNEL_ID, photo=item["image"], caption=format_news_item(item))
                 else:
-                    await bot.send_message(chat_id=os.getenv("CHAT_ID", "your-chat-id"), text=format_news_item(item), disable_web_page_preview=False)
+                    await bot.send_message(chat_id=CHANNEL_ID, text=format_news_item(item), disable_web_page_preview=False)
                 sent_cache.append(item["link"])
                 save_cache()
+                await asyncio.sleep(2)  # delay between each message
+            except TelegramRetryAfter as e:
+                print(f"Flood control hit. Waiting {e.retry_after} seconds...")
+                await asyncio.sleep(e.retry_after)
+                continue
             except Exception as e:
                 print(f"Failed to send news: {e}")
 
