@@ -18,10 +18,10 @@ CHANNEL_ID = os.getenv("CHAT_ID", "your-chat-id")
 ANN_NEWS_URL = "https://www.animenewsnetwork.com/all/rss.xml"
 NEWS_CACHE_FILE = "sent_ann_news.json"
 
-# Initialize bot with default HTML parse mode
+# Initialize bot with default Markdown parse mode
 bot = Bot(
     token=BOT_TOKEN,
-    default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+    default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN)
 )
 dp = Dispatcher(storage=MemoryStorage())
 scheduler = AsyncIOScheduler()
@@ -37,6 +37,13 @@ else:
 def save_cache():
     with open(NEWS_CACHE_FILE, "w") as f:
         json.dump(sent_cache, f)
+
+# Keywords to allow only anime-related news
+ALLOWED_KEYWORDS = ["anime", "manga", "OVA", "episode", "film", "season", "crunchyroll", "funimation", "trailer"]
+
+def is_anime_related(title):
+    title_lower = title.lower()
+    return any(keyword in title_lower for keyword in ALLOWED_KEYWORDS)
 
 # Fetch and parse ANN RSS feed
 async def get_ann_news():
@@ -54,14 +61,16 @@ async def get_ann_news():
                 pub_date = item.find("pubDate").text
                 description = item.find("description").text
 
-                # Format date
+                # Filter only anime-related
+                if not is_anime_related(title):
+                    continue
+
                 try:
                     dt = datetime.strptime(pub_date, "%a, %d %b %Y %H:%M:%S %z")
                     formatted_date = dt.strftime("%Y-%m-%d %H:%M UTC")
                 except:
                     formatted_date = pub_date
 
-                # Try to extract an image URL from description (if present)
                 img_link = None
                 if description and "<img" in description:
                     start = description.find("<img")
@@ -80,64 +89,69 @@ async def get_ann_news():
                 })
             return news
 
-# Format news item
+# Format news item using Markdown
 
 def format_news_item(item):
     title = html.escape(item["title"])
     link = html.escape(item["link"])
     date = html.escape(item["date"])
     return (
-        f"\ud83c\udf38 <b><u>{title}</u></b> \ud83c\udf38\n\n"
-        f"\ud83d\udcc5 <b>Published on:</b> <code>{date}</code>\n\n"
-        f"\ud83e\udda1 <b>Latest Update:</b>\n\n"
-        f"\ud83d\udd17 <a href='{link}'>Click to read full story</a>\n\n"
-        f"\u2601\ufe0f <i>Take a gentle pause and enjoy the latest anime happenings.</i>\n\n"
-        f"\ud83d\udcac Share your feelings with the community!\n\n"
-        f"#AnimeNews"
+        f"*{title}*\n"
+        f"_Published on:_ `{date}`\n\n"
+        f"[Read full story]({link})\n\n"
+        f"Take a gentle pause and enjoy the latest anime happenings.\n\n"
+        f"#SliceOfLife #AnimeNews"
     )
 
 @dp.message(F.text == "/start")
 async def cmd_start(message: Message):
-    await message.answer("\ud83d\udc4b Welcome! Use /news to get the latest anime news from Anime News Network.")
+    await message.answer("👋 Welcome! Use /news to get the latest anime news from Anime News Network.")
 
 @dp.message(F.text == "/news")
 async def cmd_news(message: Message):
-    await message.answer("\ud83d\udcf0 Fetching the latest anime news...")
+    await message.answer("📰 Fetching the latest anime news...")
     news_list = await get_ann_news()
     if not news_list:
-        await message.answer("\u274c Couldn't fetch news right now.")
+        await message.answer("❌ Couldn't fetch news right now.")
         return
     for item in news_list[:5]:
+        await try_send_news(chat_id=message.chat.id, item=item)
+        await asyncio.sleep(1.5)
+
+# Retry-safe message/photo sender with optional pinning
+async def try_send_news(chat_id, item):
+    max_retries = 3
+    for attempt in range(max_retries):
         try:
             if item.get("image"):
-                await message.answer_photo(photo=item["image"], caption=format_news_item(item))
+                msg = await bot.send_photo(chat_id=chat_id, photo=item["image"], caption=format_news_item(item))
             else:
-                await message.answer(format_news_item(item), disable_web_page_preview=False)
-            await asyncio.sleep(1.5)  # slight delay to prevent flooding
+                msg = await bot.send_message(chat_id=chat_id, text=format_news_item(item), disable_web_page_preview=False)
+
+            # Automatically pin first message in channel
+            if chat_id == CHANNEL_ID and attempt == 0:
+                try:
+                    await bot.pin_chat_message(chat_id=chat_id, message_id=msg.message_id, disable_notification=True)
+                except Exception as pin_error:
+                    print(f"Pinning failed: {pin_error}")
+            return
+
         except TelegramRetryAfter as e:
+            print(f"Rate limit hit. Waiting {e.retry_after} seconds...")
             await asyncio.sleep(e.retry_after)
         except Exception as e:
-            print(f"Failed to send message: {e}")
+            print(f"Error sending message: {e}")
+            await asyncio.sleep(2)
 
 # Automatically check and send new news
 async def check_and_send_news():
     news_list = await get_ann_news()
     for item in news_list:
         if item["link"] not in sent_cache:
-            try:
-                if item.get("image"):
-                    await bot.send_photo(chat_id=CHANNEL_ID, photo=item["image"], caption=format_news_item(item))
-                else:
-                    await bot.send_message(chat_id=CHANNEL_ID, text=format_news_item(item), disable_web_page_preview=False)
-                sent_cache.append(item["link"])
-                save_cache()
-                await asyncio.sleep(2)  # delay between each message
-            except TelegramRetryAfter as e:
-                print(f"Flood control hit. Waiting {e.retry_after} seconds...")
-                await asyncio.sleep(e.retry_after)
-                continue
-            except Exception as e:
-                print(f"Failed to send news: {e}")
+            await try_send_news(chat_id=CHANNEL_ID, item=item)
+            sent_cache.append(item["link"])
+            save_cache()
+            await asyncio.sleep(2)
 
 # Main entry point
 async def main():
