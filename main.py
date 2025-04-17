@@ -14,7 +14,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from aiogram.exceptions import TelegramRetryAfter
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "your-telegram-bot-token-here")
-CHANNEL_ID = os.getenv("CHAT_ID", "your-chat-id")
+CHANNEL_ID = os.getenv("CHAT_ID", "your-chat-id").split(",")
 ANN_NEWS_URL = "https://www.animenewsnetwork.com/all/rss.xml"
 NEWS_CACHE_FILE = "sent_ann_news.json"
 
