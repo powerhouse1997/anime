@@ -96,7 +96,7 @@ def format_news_item(item):
     link = html.escape(item["link"])
     date = html.escape(item["date"])
     return (
-        f"🌸 *_{title}_* 🌸\n\n"
+        f"🌸 * {title} * 🌸\n\n"
         f"📅 *Published on:* `{date}`\n\n"
         f"🧡 *Latest Update:*\n\n"
         f"🔗 [Click to read full story]({link})\n\n"
