@@ -5,7 +5,7 @@ import asyncio
 import xml.etree.ElementTree as ET
 import json
 from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message
+from aiogram.types import Message, InputMediaPhoto
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -49,22 +49,40 @@ async def get_ann_news():
                 title = item.find("title").text
                 link = item.find("link").text
                 pub_date = item.find("pubDate").text
+                description = item.find("description").text
+
+                # Try to extract an image URL from description (if present)
+                img_link = None
+                if description and "<img" in description:
+                    start = description.find("<img")
+                    src_start = description.find("src=\"", start)
+                    if src_start != -1:
+                        src_start += len("src=\"")
+                        src_end = description.find("\"", src_start)
+                        if src_end != -1:
+                            img_link = description[src_start:src_end]
+
                 news.append({
                     "title": title,
                     "link": link,
-                    "date": pub_date
+                    "date": pub_date,
+                    "image": img_link
                 })
             return news
 
+# Enhanced polished message with thumbnail (if available)
 def format_news_item(item):
     title = html.escape(item["title"])
     link = html.escape(item["link"])
     date = html.escape(item["date"])
     return (
-        f"<b>📰 New Anime News!</b>\n\n"
-        f"<b>🧾 Title:</b> {title}\n"
-        f"<b>📅 Published:</b> {date}\n\n"
-        f"<a href='{link}'>🔗 Read Full Article</a>"
+        f"<b>✨ Latest Anime Update ✨</b>\n"
+        f"<i>Stay informed with the freshest news!</i>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"<b>📰 Title:</b> <i>{title}</i>\n"
+        f"<b>📅 Date:</b> {date}\n"
+        f"<b>🔗 <a href='{link}'>Read Full Article Here</a></b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━"
     )
 
 @dp.message(F.text == "/start")
@@ -79,7 +97,10 @@ async def cmd_news(message: Message):
         await message.answer("❌ Couldn't fetch news right now.")
         return
     for item in news_list[:5]:
-        await message.answer(format_news_item(item), disable_web_page_preview=False)
+        if item.get("image"):
+            await message.answer_photo(photo=item["image"], caption=format_news_item(item))
+        else:
+            await message.answer(format_news_item(item), disable_web_page_preview=False)
 
 # Automatically check and send new news
 async def check_and_send_news():
@@ -87,7 +108,10 @@ async def check_and_send_news():
     for item in news_list:
         if item["link"] not in sent_cache:
             try:
-                await bot.send_message(chat_id=os.getenv("NEWS_CHAT_ID", "your-chat-id"), text=format_news_item(item), disable_web_page_preview=False)
+                if item.get("image"):
+                    await bot.send_photo(chat_id=os.getenv("NEWS_CHAT_ID", "your-chat-id"), photo=item["image"], caption=format_news_item(item))
+                else:
+                    await bot.send_message(chat_id=os.getenv("NEWS_CHAT_ID", "your-chat-id"), text=format_news_item(item), disable_web_page_preview=False)
                 sent_cache.append(item["link"])
                 save_cache()
             except Exception as e:
