@@ -118,9 +118,9 @@ async def check_and_send_news():
         if item["link"] not in sent_cache:
             try:
                 if item.get("image"):
-                    await bot.send_photo(chat_id=os.getenv("NEWS_CHAT_ID", "your-chat-id"), photo=item["image"], caption=format_news_item(item))
+                    await bot.send_photo(chat_id=os.getenv("CHAT_ID", "your-chat-id"), photo=item["image"], caption=format_news_item(item))
                 else:
-                    await bot.send_message(chat_id=os.getenv("NEWS_CHAT_ID", "your-chat-id"), text=format_news_item(item), disable_web_page_preview=False)
+                    await bot.send_message(chat_id=os.getenv("CHAT_ID", "your-chat-id"), text=format_news_item(item), disable_web_page_preview=False)
                 sent_cache.append(item["link"])
                 save_cache()
             except Exception as e:
