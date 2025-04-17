@@ -70,17 +70,20 @@ async def get_ann_news():
                 })
             return news
 
-# Shonen-style themed message
+# Slice of Life - Soft Vibes style
+
 def format_news_item(item):
     title = html.escape(item["title"])
     link = html.escape(item["link"])
     date = html.escape(item["date"])
     return (
-        f"🔥 <b><u>🔥 BREAKING ANIME NEWS 🔥</u></b>\n"
-        f"💥 <b>Title:</b> <i>{title}</i>\n"
-        f"🕒 <b>Date:</b> {date}\n"
-        f"🚀 <a href='{link}'>Read the full hype</a>\n"
-        f"🏆 Stay tuned, hero!"
+        f"🌸 <b><u>{title}</u></b> 🌸\n\n"
+        f"📅 <b>Published on:</b> <code>{date}</code>\n\n"
+        f"🧡 <b>Latest Update:</b>\n\n"
+        f"🔗 <a href='{link}'>Click to read full story</a>\n\n"
+        f"☁️ <i>Take a gentle pause and enjoy the latest anime happenings.</i>\n\n"
+        f"💬 Share your feelings with the community!\n\n"
+        f"#SliceOfLife #AnimeNews"
     )
 
 @dp.message(F.text == "/start")
