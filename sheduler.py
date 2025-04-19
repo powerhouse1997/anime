@@ -2,7 +2,7 @@ import aiohttp
 import asyncio
 from datetime import datetime, timedelta
 from aiogram import Bot
-from aiogram.types.message import ParseMode
+from aiogram.emu import ParseMode
 
 # Anilist API URL and Query to get currently airing anime
 ANILIST_API_URL = "https://graphql.anilist.co"
