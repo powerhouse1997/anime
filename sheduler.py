@@ -93,18 +93,6 @@ async def send_release_message(bot: Bot, channel_ids, release):
         except Exception as e:
             print(f"[Error sending release to {chat_id}]: {e}")
 
-async def notify_releases(bot: Bot, channel_ids, early=False):
-    """
-    Function to fetch recently released anime and notify specified channels.
-    """
-    releases = await fetch_released_anime()
-
-    if not releases:
-        message = "😔 No recently released anime found."
-        for chat_id in channel_ids:
-            await bot.send_message(chat_id=str(chat_id).strip(), text=message)  # Ensure chat_id is a string
-        return
-
     # Send release notifications
     for release in releases:
         await send_release_message(bot, channel_ids, release)
