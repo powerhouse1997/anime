@@ -1,51 +1,68 @@
-import os
-import html
 import aiohttp
 import asyncio
-from datetime import datetime
-from aiogram import Bot
-from aiogram.enums import ParseMode
-from aiogram.client.default import DefaultBotProperties
+import html
+from datetime import datetime, timedelta
+from main import bot, CHANNEL_IDS
 
-# Load bot token and chat/channel IDs
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "your-telegram-bot-token-here")
-CHANNEL_IDS = os.getenv("CHAT_IDS", "your-chat-id").split(",")
-
-# Setup bot
-bot = Bot(
-    token=BOT_TOKEN,
-    default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN)
-)
-
-# Simulated dummy release data
+# Dummy fetch function – replace this with your actual API logic
 async def fetch_upcoming_releases(early=False):
-    # You can replace this with actual API integration (e.g., Shikimori or Anilist)
-    return [
-        {"title": "My Hero Academia S7", "date": "2025-04-27"},
-        {"title": "Chainsaw Man S2", "date": "2025-05-01"}
-    ] if early else []
+    """
+    Fetch upcoming anime releases from your API or data source.
+    Returns a list of dictionaries: { title, date, image (optional) }
+    """
+    # Example static mockup (replace this with actual API fetching logic)
+    example = [
+        {
+            "title": "One Piece",
+            "date": (datetime.utcnow() + timedelta(days=1 if early else 0)).strftime("%Y-%m-%d"),
+            "image": "https://cdn.myanimelist.net/images/anime/6/73245.jpg"
+        },
+        {
+            "title": "Jujutsu Kaisen Season 2",
+            "date": (datetime.utcnow() + timedelta(days=1 if early else 0)).strftime("%Y-%m-%d"),
+            "image": "https://cdn.myanimelist.net/images/anime/1171/109222.jpg"
+        }
+    ]
+    return example
 
-def format_release_message(releases):
-    if not releases:
-        return "😔 No upcoming releases found."
-    
-    lines = ["📅 *Upcoming Anime Releases:*"]
-    for r in releases:
-        title = html.escape(r["title"])
-        date = html.escape(r["date"])
-        lines.append(f"• *{title}* — `{date}`")
-    return "\n".join(lines)
-
-# Main release notification logic
+# Main notification function
 async def notify_releases(early=False, manual_chat_id=None):
     releases = await fetch_upcoming_releases(early=early)
-    message = format_release_message(releases)
 
-    if manual_chat_id:
-        # Sent manually via /upcoming
-        await bot.send_message(chat_id=manual_chat_id, text=message)
-    else:
-        # Scheduled push to all channels
-        for chat_id in CHANNEL_IDS:
+    if not releases:
+        message = "😔 No upcoming releases found."
+        targets = [manual_chat_id] if manual_chat_id else CHANNEL_IDS
+        for chat_id in targets:
             await bot.send_message(chat_id=chat_id.strip(), text=message)
-            await asyncio.sleep(1)
+        return
+
+    for release in releases:
+        title = html.escape(release.get("title", "Unknown"))
+        date = html.escape(release.get("date", "Unknown"))
+        image = release.get("image")
+
+        caption = (
+            f"🎬 <b>{title}</b>\n"
+            f"📅 <b>Release Date:</b> <code>{date}</code>\n\n"
+            f"#UpcomingAnime"
+        )
+
+        targets = [manual_chat_id] if manual_chat_id else CHANNEL_IDS
+        for chat_id in targets:
+            try:
+                if image:
+                    await bot.send_photo(
+                        chat_id=chat_id.strip(),
+                        photo=image,
+                        caption=caption,
+                        parse_mode="HTML"
+                    )
+                else:
+                    await bot.send_message(
+                        chat_id=chat_id.strip(),
+                        text=caption,
+                        parse_mode="HTML"
+                    )
+                await asyncio.sleep(1)
+            except Exception as e:
+                print(f"[Error sending release to {chat_id}]: {e}")
