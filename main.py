@@ -10,7 +10,9 @@ from aiogram.types import Message
 from aiogram.fsm.storage.memory import MemoryStorage
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from aiogram.exceptions import TelegramRetryAfter
-
+from aiogram import types
+from aiogram.types import ParseMode
+from sheduler import notify_releases  # Import notify_releases from your scheduler
 from bot_config import bot, CHAT_IDS, PINNABLE_ID
 from sheduler import setup_scheduled_jobs  # Import scheduler setup
 
@@ -106,6 +108,18 @@ async def cmd_news(message: Message):
         for chat_id in CHAT_IDS:
             await try_send_news(chat_id=chat_id.strip(), item=item)
             await asyncio.sleep(1.5)
+# Add the /upcoming command handler
+@dp.message(F.text == "/upcoming")
+async def cmd_upcoming(message: Message):
+    # This command will send upcoming releases right away
+    await message.answer("🕑 Fetching upcoming releases...")
+    
+    try:
+        # Trigger upcoming releases from Shikimori API (early notifications)
+        await notify_releases(early=True)
+        await message.answer("🚨 Upcoming releases sent!")
+    except Exception as e:
+        await message.answer(f"❌ Error occurred: {str(e)}")
 
 async def try_send_news(chat_id, item):
     for attempt in range(3):
