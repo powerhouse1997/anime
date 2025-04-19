@@ -5,38 +5,47 @@ import asyncio
 import xml.etree.ElementTree as ET
 import json
 from datetime import datetime
-from aiogram import Dispatcher, F
+from aiogram import Bot, Dispatcher, F, types  # Import types
 from aiogram.types import Message
 from aiogram.fsm.storage.memory import MemoryStorage
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from aiogram.exceptions import TelegramRetryAfter
-from aiogram import types
-from aiogram.types import ParseMode
-from sheduler import notify_releases  # Import notify_releases from your scheduler
-from bot_config import bot, CHAT_IDS, PINNABLE_ID
-from sheduler import setup_scheduled_jobs  # Import scheduler setup
 
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "your-telegram-bot-token-here")
+CHANNEL_IDS = os.getenv("CHAT_IDS", "your-chat-id").split(",")
+PINNABLE_ID = os.getenv("PIN_ID", CHANNEL_IDS[0])
 ANN_NEWS_URL = "https://www.animenewsnetwork.com/all/rss.xml"
 NEWS_CACHE_FILE = "sent_ann_news.json"
 
+# Initialize bot with default Markdown parse mode
+bot = Bot(
+    token=BOT_TOKEN,
+    parse_mode=types.ParseMode.MARKDOWN  # Updated import
+)
 dp = Dispatcher(storage=MemoryStorage())
 scheduler = AsyncIOScheduler()
 
+# Load or initialize cache
 if os.path.exists(NEWS_CACHE_FILE):
     with open(NEWS_CACHE_FILE, "r") as f:
         sent_cache = json.load(f)
 else:
     sent_cache = []
 
+
+# Save updated cache
 def save_cache():
     with open(NEWS_CACHE_FILE, "w") as f:
         json.dump(sent_cache, f)
 
+# Keywords to allow only anime-related news
 ALLOWED_KEYWORDS = ["anime", "manga", "OVA", "episode", "film", "season", "crunchyroll", "funimation", "trailer"]
 
 def is_anime_related(title):
-    return any(keyword in title.lower() for keyword in ALLOWED_KEYWORDS)
+    title_lower = title.lower()
+    return any(keyword in title_lower for keyword in ALLOWED_KEYWORDS)
 
+# Fetch and parse ANN RSS feed
 async def get_ann_news():
     async with aiohttp.ClientSession() as session:
         async with session.get(ANN_NEWS_URL) as resp:
@@ -52,6 +61,7 @@ async def get_ann_news():
                 pub_date = item.find("pubDate").text
                 description = item.find("description").text
 
+                # Filter only anime-related
                 if not is_anime_related(title):
                     continue
 
@@ -79,6 +89,8 @@ async def get_ann_news():
                 })
             return news
 
+# Format news item using Markdown
+
 def format_news_item(item):
     title = html.escape(item["title"])
     link = html.escape(item["link"])
@@ -95,34 +107,24 @@ def format_news_item(item):
 
 @dp.message(F.text == "/start")
 async def cmd_start(message: Message):
-    await message.answer("👋 Welcome! Use /news to get the latest anime news from Anime News Network.")
+    await message.answer("\U0001F44B Welcome! Use /news to get the latest anime news from Anime News Network.")
 
 @dp.message(F.text == "/news")
 async def cmd_news(message: Message):
-    await message.answer("📰 Fetching the latest anime news...")
+    await message.answer("\U0001F4F0 Fetching the latest anime news...")
     news_list = await get_ann_news()
     if not news_list:
-        await message.answer("❌ Couldn't fetch news right now.")
+        await message.answer("\u274C Couldn't fetch news right now.")
         return
     for item in news_list[:5]:
-        for chat_id in CHAT_IDS:
+        for chat_id in CHANNEL_IDS:
             await try_send_news(chat_id=chat_id.strip(), item=item)
             await asyncio.sleep(1.5)
-# Add the /upcoming command handler
-@dp.message(F.text == "/upcoming")
-async def cmd_upcoming(message: Message):
-    # This command will send upcoming releases right away
-    await message.answer("🕑 Fetching upcoming releases...")
-    
-    try:
-        # Trigger upcoming releases from Shikimori API (early notifications)
-        await notify_releases(early=True)
-        await message.answer("🚨 Upcoming releases sent!")
-    except Exception as e:
-        await message.answer(f"❌ Error occurred: {str(e)}")
 
+# Retry-safe message/photo sender with optional pinning
 async def try_send_news(chat_id, item):
-    for attempt in range(3):
+    max_retries = 3
+    for attempt in range(max_retries):
         try:
             if item.get("image"):
                 msg = await bot.send_photo(chat_id=chat_id, photo=item["image"], caption=format_news_item(item))
@@ -143,19 +145,20 @@ async def try_send_news(chat_id, item):
             print(f"Error sending message: {e}")
             await asyncio.sleep(2)
 
+# Automatically check and send new news
 async def check_and_send_news():
     news_list = await get_ann_news()
     for item in news_list:
         if item["link"] not in sent_cache:
-            for chat_id in CHAT_IDS:
+            for chat_id in CHANNEL_IDS:
                 await try_send_news(chat_id=chat_id.strip(), item=item)
             sent_cache.append(item["link"])
             save_cache()
             await asyncio.sleep(2)
 
+# Main entry point
 async def main():
     scheduler.add_job(check_and_send_news, "interval", minutes=10)
-    setup_scheduled_jobs(scheduler)
     scheduler.start()
     await dp.start_polling(bot)
 
