@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 # Update function to accept bot and channel IDs as arguments
 async def notify_releases(bot, CHANNEL_IDS, early=False, manual_chat_id=None):
     """
-    Function to fetch upcoming releases and today's releases, and send notifications.
+    Function to fetch upcoming releases and send notifications.
     """
     upcoming_releases = await fetch_upcoming_releases(early=early)
     today_releases = await fetch_today_releases()
@@ -75,20 +75,21 @@ async def send_release_message(bot, release, CHANNEL_IDS, manual_chat_id):
 
 async def fetch_upcoming_releases(early=False):
     """
-    Fetch upcoming anime releases from Shikimori API.
+    Fetch upcoming anime releases from Shikimori Calendar API.
     Returns a list of dictionaries: { title, date, genres, rating, episodes, image (optional) }
     """
-    url = "https://shikimori.one/api/animes"
-    params = {"status": "1", "limit": 5}  # Fetch upcoming anime (status=1) and limit to 5 entries
+    url = "https://shikimori.one/api/calendar"
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    params = {"date": today, "limit": 5, "order": "airing_at"}  # Get anime airing today with limit
 
     async with aiohttp.ClientSession() as session:
         try:
             async with session.get(url, params=params) as resp:
                 if resp.status != 200:
-                    print(f"Error fetching from Shikimori API: {resp.status}")
+                    print(f"Error fetching from Shikimori Calendar API: {resp.status}")
                     return []
                 data = await resp.json()
-                
+
                 # Extract necessary data
                 upcoming_anime = []
                 for anime in data:
@@ -98,13 +99,13 @@ async def fetch_upcoming_releases(early=False):
                     rating = anime.get("score", "No rating available")
                     episodes = anime.get("episodes", "Unknown")
                     image = anime.get("image", {}).get("original", None)
-                    
+
                     if release_date:
                         release_date = datetime.strptime(release_date, "%Y-%m-%d")
                         release_date = release_date.strftime("%Y-%m-%d")
                     else:
                         release_date = "Unknown"
-                    
+
                     upcoming_anime.append({
                         "title": title,
                         "date": release_date,
@@ -122,22 +123,22 @@ async def fetch_upcoming_releases(early=False):
 
 async def fetch_today_releases():
     """
-    Fetch today's anime releases from Shikimori API.
+    Fetch today's anime releases from Shikimori Calendar API.
     Returns a list of dictionaries: { title, date, genres, rating, episodes, image (optional) }
     """
     today = datetime.utcnow().strftime("%Y-%m-%d")
     
-    url = "https://shikimori.one/api/animes"
-    params = {"status": "1", "limit": 10}  # Fetch anime that are released today (status=1)
+    url = "https://shikimori.one/api/calendar"
+    params = {"date": today, "limit": 10}  # Fetch anime that are released today (status=2)
     
     async with aiohttp.ClientSession() as session:
         try:
             async with session.get(url, params=params) as resp:
                 if resp.status != 200:
-                    print(f"Error fetching from Shikimori API: {resp.status}")
+                    print(f"Error fetching from Shikimori Calendar API: {resp.status}")
                     return []
                 data = await resp.json()
-                
+
                 # Filter releases for today
                 today_releases = []
                 for anime in data:
