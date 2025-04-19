@@ -1,93 +1,73 @@
-import aiohttp
 import asyncio
-from aiogram import Bot
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+import aiohttp
 from datetime import datetime
+from aiogram import Bot
 
-ANI_LIST_API_URL = "https://graphql.anilist.co"
-
-# Function to fetch released anime from AniList
+# Fetch upcoming releases (you can replace this with actual API fetching)
 async def fetch_released_anime():
-    query = '''
-    query {
-        Page(page: 1, perPage: 10) {
-            media(type: ANIME, status: FINISHED) {
-                title {
-                    romaji
-                    english
-                    native
-                }
-                startDate {
-                    year
-                    month
-                    day
-                }
-                coverImage {
-                    large
-                }
-                siteUrl
-            }
+    # Replace with your API call to fetch the released anime data
+    # Example static mockup (replace with real API fetching logic)
+    example = [
+        {
+            "title": "One Piece",
+            "date": datetime.utcnow().strftime("%Y-%m-%d"),
+            "image": "https://cdn.myanimelist.net/images/anime/6/73245.jpg",
+            "url": "https://www.example.com/one-piece"  # Replace with actual anime link
+        },
+        {
+            "title": "Jujutsu Kaisen",
+            "date": datetime.utcnow().strftime("%Y-%m-%d"),
+            "image": "https://cdn.myanimelist.net/images/anime/1171/109222.jpg",
+            "url": "https://www.example.com/jujutsu-kaisen"  # Replace with actual anime link
         }
-    }
-    '''
+    ]
+    return example
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(ANI_LIST_API_URL, json={'query': query}) as response:
-            if response.status == 200:
-                data = await response.json()
-                released_anime = []
-                for media in data["data"]["Page"]["media"]:
-                    title = media["title"]["romaji"] or media["title"]["english"] or media["title"]["native"]
-                    release_date = datetime(media["startDate"]["year"], media["startDate"]["month"], media["startDate"]["day"]).strftime('%Y-%m-%d')
-                    image = media["coverImage"]["large"]
-                    url = media["siteUrl"]
-                    released_anime.append({
-                        'title': title,
-                        'release_date': release_date,
-                        'image': image,
-                        'url': url
-                    })
-                return released_anime
-            else:
-                print("Error fetching from AniList API:", response.status)
-                return []
-
-# Function to create inline button for watching
+# Function to create the "Watch Now" button
 def create_watch_button(url):
     button = InlineKeyboardButton(text="Watch Now", url=url)
     keyboard = InlineKeyboardMarkup().add(button)
     return keyboard
 
-# Function to send released anime to your channels
-async def send_released_anime(bot, CHANNEL_IDS):
-    released_anime = await fetch_released_anime()
+# Function to send notifications for released anime
+async def notify_releases(bot: Bot, CHANNEL_IDS, early=False, manual_chat_id=None):
+    releases = await fetch_released_anime()  # Get anime data
 
-    if not released_anime:
-        message = "😔 No recently released anime found."
-        for chat_id in CHANNEL_IDS:
-            await bot.send_message(chat_id, message)
+    if not releases:
+        message = "😔 No upcoming releases found."
+        targets = [manual_chat_id] if manual_chat_id else CHANNEL_IDS
+        for chat_id in targets:
+            await bot.send_message(chat_id=chat_id, text=message, parse_mode=ParseMode.MARKDOWN)
         return
 
-    for anime in released_anime:
-        title = anime['title']
-        release_date = anime['release_date']
-        image = anime['image']
-        url = anime['url']
-        
-        caption = (
-            f"🎬 *{title}*\n"
-            f"📅 Released: {release_date}\n"
-            f"#ReleasedAnime"
-        )
+    for release in releases:
+        title = release.get("title", "Unknown")
+        date = release.get("date", "Unknown")
+        image = release.get("image", None)
+        url = release.get("url", "")  # The URL for "Watch Now" button
 
-        keyboard = create_watch_button(url)
+        caption = f"🎬 *{title}*\n📅 Released: {date}\n"
 
-        for chat_id in CHANNEL_IDS:
+        targets = [manual_chat_id] if manual_chat_id else CHANNEL_IDS
+        for chat_id in targets:
             try:
+                keyboard = create_watch_button(url)  # Add "Watch Now" button
                 if image:
-                    await bot.send_photo(chat_id=chat_id, photo=image, caption=caption, reply_markup=keyboard, parse_mode="Markdown")
+                    await bot.send_photo(
+                        chat_id=chat_id,
+                        photo=image,
+                        caption=caption,
+                        reply_markup=keyboard,
+                        parse_mode="Markdown"
+                    )
                 else:
-                    await bot.send_message(chat_id=chat_id, text=caption, reply_markup=keyboard, parse_mode="Markdown")
+                    await bot.send_message(
+                        chat_id=chat_id,
+                        text=caption,
+                        reply_markup=keyboard,
+                        parse_mode="Markdown"
+                    )
                 await asyncio.sleep(1)
             except Exception as e:
                 print(f"[Error sending release to {chat_id}]: {e}")
