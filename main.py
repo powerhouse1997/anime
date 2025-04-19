@@ -12,9 +12,8 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from aiogram.exceptions import TelegramRetryAfter
-
 # ✅ Shikimori Scheduler Import
-from schedule import setup_scheduled_jobs
+from sheduler import setup_scheduled_jobs
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "your-telegram-bot-token-here")
 CHANNEL_IDS = os.getenv("CHAT_IDS", "your-chat-id").split(",")
