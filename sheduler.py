@@ -1,111 +1,93 @@
 import aiohttp
 import asyncio
-import html
-from datetime import datetime, timezone, timedelta
+from aiogram import Bot
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from datetime import datetime
 
-ANILIST_API = "https://graphql.anilist.co"
+ANI_LIST_API_URL = "https://graphql.anilist.co"
 
-# Fetch upcoming anime releases from Anilist API
-async def fetch_anilist_upcoming():
-    query = """
-    query ($now: Int) {
-      Page(perPage: 10) {
-        airingSchedules(sort: TIME, airingAt_greater: $now) {
-          airingAt
-          episode
-          media {
-            title {
-              romaji
+# Function to fetch released anime from AniList
+async def fetch_released_anime():
+    query = '''
+    query {
+        Page(page: 1, perPage: 10) {
+            media(type: ANIME, status: FINISHED) {
+                title {
+                    romaji
+                    english
+                    native
+                }
+                startDate {
+                    year
+                    month
+                    day
+                }
+                coverImage {
+                    large
+                }
+                siteUrl
             }
-            coverImage {
-              large
-            }
-            siteUrl
-          }
         }
-      }
     }
-    """
+    '''
 
-    now_timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    variables = {"now": now_timestamp}
+    async with aiohttp.ClientSession() as session:
+        async with session.post(ANI_LIST_API_URL, json={'query': query}) as response:
+            if response.status == 200:
+                data = await response.json()
+                released_anime = []
+                for media in data["data"]["Page"]["media"]:
+                    title = media["title"]["romaji"] or media["title"]["english"] or media["title"]["native"]
+                    release_date = datetime(media["startDate"]["year"], media["startDate"]["month"], media["startDate"]["day"]).strftime('%Y-%m-%d')
+                    image = media["coverImage"]["large"]
+                    url = media["siteUrl"]
+                    released_anime.append({
+                        'title': title,
+                        'release_date': release_date,
+                        'image': image,
+                        'url': url
+                    })
+                return released_anime
+            else:
+                print("Error fetching from AniList API:", response.status)
+                return []
 
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(ANILIST_API, json={"query": query, "variables": variables}) as resp:
-                if resp.status != 200:
-                    print(f"Anilist API error: {resp.status}")
-                    return []
+# Function to create inline button for watching
+def create_watch_button(url):
+    button = InlineKeyboardButton(text="Watch Now", url=url)
+    keyboard = InlineKeyboardMarkup().add(button)
+    return keyboard
 
-                data = await resp.json()
-                return data["data"]["Page"]["airingSchedules"]
-    except Exception as e:
-        print(f"Error fetching from Anilist API: {e}")
-        return []
+# Function to send released anime to your channels
+async def send_released_anime(bot, CHANNEL_IDS):
+    released_anime = await fetch_released_anime()
 
-# Function to send upcoming releases as messages
-async def notify_releases(bot, CHANNEL_IDS, early=False, manual_chat_id=None):
-    releases = await fetch_anilist_upcoming()
-
-    if not releases:
-        message = "😔 No upcoming releases found."
-        targets = [manual_chat_id] if manual_chat_id else CHANNEL_IDS
-        for chat_id in targets:
-            await bot.send_message(chat_id=str(chat_id).strip(), text=message)  # Ensure chat_id is a string
+    if not released_anime:
+        message = "😔 No recently released anime found."
+        for chat_id in CHANNEL_IDS:
+            await bot.send_message(chat_id, message)
         return
 
-    for release in releases:
-        title = html.escape(release["media"]["title"]["romaji"])
-        date = datetime.utcfromtimestamp(release["airingAt"]).strftime("%Y-%m-%d %H:%M:%S UTC")
-        image = release["media"]["coverImage"]["large"]
-        url = release["media"]["siteUrl"]
-        episode = release["episode"]
-
+    for anime in released_anime:
+        title = anime['title']
+        release_date = anime['release_date']
+        image = anime['image']
+        url = anime['url']
+        
         caption = (
-            f"🎬 <b>{title}</b>\n"
-            f"📅 <b>Release Date:</b> <code>{date}</code>\n"
-            f"📝 <b>Episode:</b> {episode}\n"
-            f"🔗 <a href='{url}'>Watch here</a>\n\n"
-            f"#UpcomingAnime"
+            f"🎬 *{title}*\n"
+            f"📅 Released: {release_date}\n"
+            f"#ReleasedAnime"
         )
 
-        targets = [manual_chat_id] if manual_chat_id else CHANNEL_IDS
-        for chat_id in targets:
+        keyboard = create_watch_button(url)
+
+        for chat_id in CHANNEL_IDS:
             try:
                 if image:
-                    await bot.send_photo(
-                        chat_id=str(chat_id).strip(),
-                        photo=image,
-                        caption=caption,
-                        parse_mode="HTML"
-                    )
+                    await bot.send_photo(chat_id=chat_id, photo=image, caption=caption, reply_markup=keyboard, parse_mode="Markdown")
                 else:
-                    await bot.send_message(
-                        chat_id=str(chat_id).strip(),
-                        text=caption,
-                        parse_mode="HTML"
-                    )
+                    await bot.send_message(chat_id=chat_id, text=caption, reply_markup=keyboard, parse_mode="Markdown")
                 await asyncio.sleep(1)
             except Exception as e:
                 print(f"[Error sending release to {chat_id}]: {e}")
-
-# Add this to your scheduler loop (for daily auto-posts)
-async def auto_notify_daily(bot, CHANNEL_IDS):
-    now = datetime.utcnow()
-    next_run_time = now.replace(hour=10, minute=0, second=0, microsecond=0)  # For example, run every day at 10:00 AM UTC
-    if now > next_run_time:
-        next_run_time += timedelta(days=1)
-
-    # Sleep until the next scheduled time
-    await asyncio.sleep((next_run_time - now).total_seconds())
-    await notify_releases(bot, CHANNEL_IDS, early=False)
-
-    # Set up to repeat the process every 24 hours
-    while True:
-        await asyncio.sleep(86400)  # Sleep for 24 hours
-        await notify_releases(bot, CHANNEL_IDS, early=False)
-
-# Integrate into your main.py or bot initialization
-async def on_start(bot, CHANNEL_IDS):
-    # Start the auto-posting task
-    asyncio.create_task(auto_notify_daily(bot, CHANNEL_IDS))
