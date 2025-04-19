@@ -11,6 +11,8 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from aiogram.exceptions import TelegramRetryAfter
 from aiogram.enums import ParseMode
+from aiogram.client.default import DefaultBotProperties
+
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "your-telegram-bot-token-here")
 CHANNEL_IDS = os.getenv("CHAT_IDS", "your-chat-id").split(",")
@@ -21,8 +23,9 @@ NEWS_CACHE_FILE = "sent_ann_news.json"
 # Initialize bot with default Markdown parse mode
 bot = Bot(
     token=BOT_TOKEN,
-    parse_mode=ParseMode.MARKDOWN
+    default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN)
 )
+
 dp = Dispatcher(storage=MemoryStorage())
 scheduler = AsyncIOScheduler()
 
