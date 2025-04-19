@@ -10,6 +10,7 @@ from aiogram.types import Message
 from aiogram.fsm.storage.memory import MemoryStorage
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from aiogram.exceptions import TelegramRetryAfter
+from aiogram.enums import ParseMode
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "your-telegram-bot-token-here")
 CHANNEL_IDS = os.getenv("CHAT_IDS", "your-chat-id").split(",")
