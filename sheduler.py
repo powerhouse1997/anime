@@ -2,31 +2,12 @@ import aiohttp
 import asyncio
 import html
 from datetime import datetime, timedelta
-from main import bot, CHANNEL_IDS
 
-# Dummy fetch function – replace this with your actual API logic
-async def fetch_upcoming_releases(early=False):
+# Update function to accept bot and channel IDs as arguments
+async def notify_releases(bot, CHANNEL_IDS, early=False, manual_chat_id=None):
     """
-    Fetch upcoming anime releases from your API or data source.
-    Returns a list of dictionaries: { title, date, image (optional) }
+    Function to fetch upcoming releases and send notifications.
     """
-    # Example static mockup (replace this with actual API fetching logic)
-    example = [
-        {
-            "title": "One Piece",
-            "date": (datetime.utcnow() + timedelta(days=1 if early else 0)).strftime("%Y-%m-%d"),
-            "image": "https://cdn.myanimelist.net/images/anime/6/73245.jpg"
-        },
-        {
-            "title": "Jujutsu Kaisen Season 2",
-            "date": (datetime.utcnow() + timedelta(days=1 if early else 0)).strftime("%Y-%m-%d"),
-            "image": "https://cdn.myanimelist.net/images/anime/1171/109222.jpg"
-        }
-    ]
-    return example
-
-# Main notification function
-async def notify_releases(early=False, manual_chat_id=None):
     releases = await fetch_upcoming_releases(early=early)
 
     if not releases:
@@ -66,3 +47,23 @@ async def notify_releases(early=False, manual_chat_id=None):
                 await asyncio.sleep(1)
             except Exception as e:
                 print(f"[Error sending release to {chat_id}]: {e}")
+
+async def fetch_upcoming_releases(early=False):
+    """
+    Fetch upcoming anime releases from your API or data source.
+    Returns a list of dictionaries: { title, date, image (optional) }
+    """
+    # Example static mockup (replace this with actual API fetching logic)
+    example = [
+        {
+            "title": "One Piece",
+            "date": (datetime.utcnow() + timedelta(days=1 if early else 0)).strftime("%Y-%m-%d"),
+            "image": "https://cdn.myanimelist.net/images/anime/6/73245.jpg"
+        },
+        {
+            "title": "Jujutsu Kaisen Season 2",
+            "date": (datetime.utcnow() + timedelta(days=1 if early else 0)).strftime("%Y-%m-%d"),
+            "image": "https://cdn.myanimelist.net/images/anime/1171/109222.jpg"
+        }
+    ]
+    return example
