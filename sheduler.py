@@ -1,90 +1,51 @@
+import os
+import html
 import aiohttp
 import asyncio
-import json
-import os
-from datetime import datetime, timedelta
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from aiogram.exceptions import TelegramRetryAfter
-from bot_config import bot, CHAT_IDS, PINNABLE_ID
+from datetime import datetime
+from aiogram import Bot
+from aiogram.enums import ParseMode
+from aiogram.client.default import DefaultBotProperties
 
-SHIKIMORI_API_URL = "https://shikimori.one/api/calendar"
-RELEASE_CACHE_FILE = "sent_releases_cache.json"
+# Load bot token and chat/channel IDs
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "your-telegram-bot-token-here")
+CHANNEL_IDS = os.getenv("CHAT_IDS", "your-chat-id").split(",")
 
-if os.path.exists(RELEASE_CACHE_FILE):
-    with open(RELEASE_CACHE_FILE, "r") as f:
-        release_cache = json.load(f)
-else:
-    release_cache = []
+# Setup bot
+bot = Bot(
+    token=BOT_TOKEN,
+    default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN)
+)
 
-def save_release_cache():
-    with open(RELEASE_CACHE_FILE, "w") as f:
-        json.dump(release_cache, f)
+# Simulated dummy release data
+async def fetch_upcoming_releases(early=False):
+    # You can replace this with actual API integration (e.g., Shikimori or Anilist)
+    return [
+        {"title": "My Hero Academia S7", "date": "2025-04-27"},
+        {"title": "Chainsaw Man S2", "date": "2025-05-01"}
+    ] if early else []
 
-async def fetch_shikimori_releases():
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(SHIKIMORI_API_URL) as response:
-                if response.status != 200:
-                    return []
-                return await response.json()
-    except Exception as e:
-        print(f"Error fetching Shikimori releases: {e}")
-        return []
+def format_release_message(releases):
+    if not releases:
+        return "😔 No upcoming releases found."
+    
+    lines = ["📅 *Upcoming Anime Releases:*"]
+    for r in releases:
+        title = html.escape(r["title"])
+        date = html.escape(r["date"])
+        lines.append(f"• *{title}* — `{date}`")
+    return "\n".join(lines)
 
-def should_notify(release_date_str, delta_days=0):
-    try:
-        date_obj = datetime.strptime(release_date_str, "%Y-%m-%d")
-        target_date = datetime.utcnow().date() + timedelta(days=delta_days)
-        return date_obj == target_date
-    except Exception:
-        return False
+# Main release notification logic
+async def notify_releases(early=False, manual_chat_id=None):
+    releases = await fetch_upcoming_releases(early=early)
+    message = format_release_message(releases)
 
-def format_release_message(item, early=False):
-    date = item.get("date", "Unknown Date")
-    anime = item.get("anime", {})
-    name = anime.get("russian") or anime.get("name") or "Unknown Title"
-    episode = item.get("episode", "N/A")
-    kind = anime.get("kind", "anime").capitalize()
-    url = f"https://shikimori.one{anime.get('url', '')}"
-
-    prefix = "🗓️ Coming Tomorrow:" if early else "🚨 New Release Today!"
-    return (
-        f"{prefix}\n\n"
-        f"*{name}*\n"
-        f"📺 Type: {kind}\n"
-        f"🎬 Episode: {episode}\n"
-        f"📅 Date: `{date}`\n"
-        f"🔗 [View on Shikimori]({url})"
-    )
-
-async def notify_releases(early=False):
-    releases = await fetch_shikimori_releases()
-    for item in releases:
-        date = item.get("date")
-        if not should_notify(date, delta_days=1 if early else 0):
-            continue
-
-        cache_key = f"{item['id']}_{'early' if early else 'day'}"
-        if cache_key in release_cache:
-            continue
-
-        message = format_release_message(item, early=early)
-        for chat_id in CHAT_IDS:
-            for attempt in range(3):
-                try:
-                    await bot.send_message(chat_id.strip(), message, disable_web_page_preview=True)
-                    break
-                except TelegramRetryAfter as e:
-                    print(f"Rate limit. Sleeping {e.retry_after}s...")
-                    await asyncio.sleep(e.retry_after)
-                except Exception as e:
-                    print(f"Failed to send release msg: {e}")
-                    await asyncio.sleep(2)
-
-        release_cache.append(cache_key)
-        save_release_cache()
-        await asyncio.sleep(2)
-
-def setup_scheduled_jobs(scheduler: AsyncIOScheduler):
-    scheduler.add_job(lambda: asyncio.create_task(notify_releases(early=True)), "cron", hour=8)
-    scheduler.add_job(lambda: asyncio.create_task(notify_releases(early=False)), "cron", hour=10)
+    if manual_chat_id:
+        # Sent manually via /upcoming
+        await bot.send_message(chat_id=manual_chat_id, text=message)
+    else:
+        # Scheduled push to all channels
+        for chat_id in CHANNEL_IDS:
+            await bot.send_message(chat_id=chat_id.strip(), text=message)
+            await asyncio.sleep(1)
