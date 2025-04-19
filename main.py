@@ -1,55 +1,69 @@
-import os
-import html
+import aiohttp
 import asyncio
-from aiogram import Bot, Dispatcher, F, types
-from aiogram.types import Message
-from aiogram.fsm.storage.memory import MemoryStorage
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
-import sheduler  # Importing the sheduler after Bot initialization
+import html
+from datetime import datetime, timedelta
 
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "your-telegram-bot-token-here")
-CHANNEL_IDS = os.getenv("CHAT_IDS", "your-chat-id").split(",")
-PINNABLE_ID = os.getenv("PIN_ID", CHANNEL_IDS[0])
-ANN_NEWS_URL = "https://www.animenewsnetwork.com/all/rss.xml"
-NEWS_CACHE_FILE = "sent_ann_news.json"
-
-# Initialize bot with default Markdown parse mode
-bot = Bot(
-    token=BOT_TOKEN,
-    default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN)
-)
-
-dp = Dispatcher(storage=MemoryStorage())
-scheduler = AsyncIOScheduler()
-
-# Load or initialize cache
-if os.path.exists(NEWS_CACHE_FILE):
-    with open(NEWS_CACHE_FILE, "r") as f:
-        sent_cache = json.load(f)
-else:
-    sent_cache = []
-
-# Save updated cache
-def save_cache():
-    with open(NEWS_CACHE_FILE, "w") as f:
-        json.dump(sent_cache, f)
-
-
-@dp.message(F.text == "/upcoming")
-async def cmd_upcoming(message: Message):
+# Update function to accept bot and channel IDs as arguments
+async def notify_releases(bot, CHANNEL_IDS, early=False, manual_chat_id=None):
     """
-    Command to fetch and notify about upcoming anime releases.
+    Function to fetch upcoming releases and send notifications.
     """
-    # Call notify_releases from sheduler.py and pass bot and CHANNEL_IDS
-    await sheduler.notify_releases(bot, CHANNEL_IDS, early=True, manual_chat_id=message.chat.id)
+    releases = await fetch_upcoming_releases(early=early)
 
+    if not releases:
+        message = "😔 No upcoming releases found."
+        targets = [manual_chat_id] if manual_chat_id else CHANNEL_IDS
+        for chat_id in targets:
+            await bot.send_message(chat_id=chat_id.strip(), text=message)
+        return
 
-async def main():
-    scheduler.add_job(sheduler.notify_releases, "interval", minutes=10, args=[bot, CHANNEL_IDS])  # Pass bot and CHANNEL_IDS
-    scheduler.start()
-    await dp.start_polling(bot)
+    for release in releases:
+        title = html.escape(release.get("title", "Unknown"))
+        date = html.escape(release.get("date", "Unknown"))
+        image = release.get("image")
 
-if __name__ == "__main__":
-    asyncio.run(main())
+        caption = (
+            f"🎬 <b>{title}</b>\n"
+            f"📅 <b>Release Date:</b> <code>{date}</code>\n\n"
+            f"#UpcomingAnime"
+        )
+
+        targets = [manual_chat_id] if manual_chat_id else CHANNEL_IDS
+        for chat_id in targets:
+            try:
+                if image:
+                    await bot.send_photo(
+                        chat_id=chat_id.strip(),
+                        photo=image,
+                        caption=caption,
+                        parse_mode="HTML"
+                    )
+                else:
+                    await bot.send_message(
+                        chat_id=chat_id.strip(),
+                        text=caption,
+                        parse_mode="HTML"
+                    )
+                await asyncio.sleep(1)
+            except Exception as e:
+                print(f"[Error sending release to {chat_id}]: {e}")
+
+async def fetch_upcoming_releases(early=False):
+    """
+    Fetch upcoming anime releases from your API or data source.
+    Returns a list of dictionaries: { title, date, image (optional) }
+    """
+    # Example static mockup (replace this with actual API fetching logic)
+    example = [
+        {
+            "title": "One Piece",
+            "date": (datetime.utcnow() + timedelta(days=1 if early else 0)).strftime("%Y-%m-%d"),
+            "image": "https://cdn.myanimelist.net/images/anime/6/73245.jpg"
+        },
+        {
+            "title": "Jujutsu Kaisen Season 2",
+            "date": (datetime.utcnow() + timedelta(days=1 if early else 0)).strftime("%Y-%m-%d"),
+            "image": "https://cdn.myanimelist.net/images/anime/1171/109222.jpg"
+        }
+    ]
+    return example
