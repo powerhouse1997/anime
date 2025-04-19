@@ -13,13 +13,15 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from aiogram.exceptions import TelegramRetryAfter
 
+# ✅ Shikimori Scheduler Import
+from schedule import setup_scheduled_jobs
+
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "your-telegram-bot-token-here")
 CHANNEL_IDS = os.getenv("CHAT_IDS", "your-chat-id").split(",")
 PINNABLE_ID = os.getenv("PIN_ID", CHANNEL_IDS[0])
 ANN_NEWS_URL = "https://www.animenewsnetwork.com/all/rss.xml"
 NEWS_CACHE_FILE = "sent_ann_news.json"
 
-# Initialize bot with default Markdown parse mode
 bot = Bot(
     token=BOT_TOKEN,
     default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN)
@@ -34,19 +36,16 @@ if os.path.exists(NEWS_CACHE_FILE):
 else:
     sent_cache = []
 
-# Save updated cache
 def save_cache():
     with open(NEWS_CACHE_FILE, "w") as f:
         json.dump(sent_cache, f)
 
-# Keywords to allow only anime-related news
 ALLOWED_KEYWORDS = ["anime", "manga", "OVA", "episode", "film", "season", "crunchyroll", "funimation", "trailer"]
 
 def is_anime_related(title):
     title_lower = title.lower()
     return any(keyword in title_lower for keyword in ALLOWED_KEYWORDS)
 
-# Fetch and parse ANN RSS feed
 async def get_ann_news():
     async with aiohttp.ClientSession() as session:
         async with session.get(ANN_NEWS_URL) as resp:
@@ -62,7 +61,6 @@ async def get_ann_news():
                 pub_date = item.find("pubDate").text
                 description = item.find("description").text
 
-                # Filter only anime-related
                 if not is_anime_related(title):
                     continue
 
@@ -89,8 +87,6 @@ async def get_ann_news():
                     "image": img_link
                 })
             return news
-
-# Format news item using Markdown
 
 def format_news_item(item):
     title = html.escape(item["title"])
@@ -122,7 +118,6 @@ async def cmd_news(message: Message):
             await try_send_news(chat_id=chat_id.strip(), item=item)
             await asyncio.sleep(1.5)
 
-# Retry-safe message/photo sender with optional pinning
 async def try_send_news(chat_id, item):
     max_retries = 3
     for attempt in range(max_retries):
@@ -146,7 +141,6 @@ async def try_send_news(chat_id, item):
             print(f"Error sending message: {e}")
             await asyncio.sleep(2)
 
-# Automatically check and send new news
 async def check_and_send_news():
     news_list = await get_ann_news()
     for item in news_list:
@@ -157,9 +151,10 @@ async def check_and_send_news():
             save_cache()
             await asyncio.sleep(2)
 
-# Main entry point
+# ✅ Main Function with Both Schedulers
 async def main():
-    scheduler.add_job(check_and_send_news, "interval", minutes=10)
+    scheduler.add_job(check_and_send_news, "interval", minutes=10)  # ANN news
+    setup_scheduled_jobs(scheduler)  # ✅ Shikimori episode release schedule
     scheduler.start()
     await dp.start_polling(bot)
 
