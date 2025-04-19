@@ -14,7 +14,7 @@ async def notify_releases(bot, CHANNEL_IDS, early=False, manual_chat_id=None):
         message = "😔 No upcoming releases found."
         targets = [manual_chat_id] if manual_chat_id else CHANNEL_IDS
         for chat_id in targets:
-            await bot.send_message(chat_id=chat_id.strip(), text=message)
+            await bot.send_message(chat_id=str(chat_id).strip(), text=message)  # Ensure chat_id is a string
         return
 
     for release in releases:
@@ -33,14 +33,14 @@ async def notify_releases(bot, CHANNEL_IDS, early=False, manual_chat_id=None):
             try:
                 if image:
                     await bot.send_photo(
-                        chat_id=chat_id.strip(),
+                        chat_id=str(chat_id).strip(),  # Ensure chat_id is a string
                         photo=image,
                         caption=caption,
                         parse_mode="HTML"
                     )
                 else:
                     await bot.send_message(
-                        chat_id=chat_id.strip(),
+                        chat_id=str(chat_id).strip(),  # Ensure chat_id is a string
                         text=caption,
                         parse_mode="HTML"
                     )
