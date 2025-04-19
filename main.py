@@ -21,7 +21,7 @@ NEWS_CACHE_FILE = "sent_ann_news.json"
 # Initialize bot with default Markdown parse mode
 bot = Bot(
     token=BOT_TOKEN,
-    parse_mode=types.ParseMode.MARKDOWN  # Updated import
+    parse_mode=ParseMode.MARKDOWN
 )
 dp = Dispatcher(storage=MemoryStorage())
 scheduler = AsyncIOScheduler()
