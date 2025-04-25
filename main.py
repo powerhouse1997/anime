@@ -8,6 +8,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 import sheduler  # Importing the sheduler after Bot initialization
+import json  # Import json here as it's used in this file
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "your-telegram-bot-token-here")
 CHANNEL_IDS = os.getenv("CHAT_IDS", "your-chat-id").split(",")
@@ -42,13 +43,13 @@ async def cmd_upcoming(message: Message):
     """
     Command to fetch and notify about upcoming anime releases.
     """
-    # Call notify_releases from sheduler.py and pass bot and CHANNEL_IDS
-    # Remove 'early=True' if already set as part of the scheduled job.
-    await sheduler.notify_releases(bot, CHANNEL_IDS, manual_chat_id=message.chat.id)
+    # Call the correct function name from sheduler.py
+    await sheduler.scheduled_notifications(bot, CHANNEL_IDS)
 
 
 async def main():
-    scheduler.add_job(sheduler.notify_releases, "interval", minutes=10, args=[bot, CHANNEL_IDS, True])  # Passing 'True' as early argument
+    # Call the correct function name in the scheduler as well
+    scheduler.add_job(sheduler.scheduled_notifications, "interval", minutes=10, args=[bot, CHANNEL_IDS])
     scheduler.start()
     await dp.start_polling(bot)
 
