@@ -10,7 +10,7 @@ ANILIST_API_URL = "https://graphql.anilist.co"
 QUERY = """
 query ($page: Int, $perPage: Int) {
     Page(page: $page, perPage: $perPage) {
-        media(type: ANIME, status: AIRING) {
+        media(type: ANIME, status: AIRING) { # Changed "AIRING" to AIRING (likely enum value)
             id
             title {
                 romaji
