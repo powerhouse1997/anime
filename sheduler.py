@@ -2,30 +2,31 @@ import aiohttp
 import asyncio
 from datetime import datetime, timedelta
 from aiogram import Bot
+from aiogram.enums import ParseMode
 
 # Anilist API URL and Query to get currently airing anime
 ANILIST_API_URL = "https://graphql.anilist.co"
 
 QUERY = """
 query ($page: Int, $perPage: Int) {
-  Page(page: $page, perPage: $perPage) {
-    media(type: ANIME, status: AIRING) {
-      id
-      title {
-        romaji
-        english
-      }
-      startDate {
-        year
-        month
-        day
-      }
-      coverImage {
-        large
-      }
-      siteUrl
+    Page(page: $page, perPage: $perPage) {
+        media(type: ANIME, status: AIRING) {
+            id
+            title {
+                romaji
+                english
+            }
+            startDate {
+                year
+                month
+                day
+            }
+            coverImage {
+                large
+            }
+            siteUrl
+        }
     }
-  }
 }
 """
 
@@ -67,7 +68,7 @@ async def send_release_message(bot: Bot, channel_ids, release):
     date = release.get("date")
     image = release.get("image")
     url = release.get("url")
-    
+
     caption = (
         f"🎬 <b>{title}</b>\n"
         f"📅 <b>Release Date:</b> <code>{date}</code>\n"
@@ -93,18 +94,14 @@ async def send_release_message(bot: Bot, channel_ids, release):
         except Exception as e:
             print(f"[Error sending release to {chat_id}]: {e}")
 
-    # Send release notifications
-    for release in releases:
-        await send_release_message(bot, channel_ids, release)
-
-async def scheduled_notifications(bot: Bot, channel_ids):
+async def notify_releases(bot: Bot, channel_ids):
     """
-    Function to handle daily scheduled notifications for newly released anime.
+    Fetches and sends release messages.
     """
-    while True:
-        try:
-            await notify_releases(bot, channel_ids)
-        except Exception as e:
-            print(f"Error during scheduled notification: {e}")
-        # Sleep for 24 hours (86400 seconds)
-        await asyncio.sleep(86400)
+    try:
+        releases = await fetch_released_anime()
+        if releases:
+            for release in releases:
+                await send_release_message(bot, channel_ids, release)
+    except Exception as e:
+        print(f"Error during scheduled notification: {e}")
