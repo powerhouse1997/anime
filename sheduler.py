@@ -25,6 +25,7 @@ query ($page: Int, $perPage: Int) {
                 large
             }
             siteUrl
+            status
         }
     }
 }
@@ -37,28 +38,41 @@ async def fetch_released_anime():
     """
     async with aiohttp.ClientSession() as session:
         variables = {"page": 1, "perPage": 5}  # Adjust the page and perPage as needed
-        async with session.post(ANILIST_API_URL, json={"query": QUERY, "variables": variables}) as response:
-            if response.status == 200:
-                data = await response.json()
-                releases = []
+        try:
+            async with session.post(ANILIST_API_URL, json={"query": QUERY, "variables": variables}) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    if 'errors' in data:
+                        print(f"Anilist API Errors: {data['errors']}")
+                        return []
+                    releases = []
+                    if 'data' in data and 'Page' in data['data'] and 'media' in data['data']['Page']:
+                        for media in data['data']['Page']['media']:
+                            title = media['title']['romaji'] if media['title']['romaji'] else media['title']['english']
+                            date = f"{media['startDate']['year']}-{media['startDate']['month']}-{media['startDate']['day']}"
+                            image = media['coverImage']['large']
+                            url = media['siteUrl']
 
-                for media in data['data']['Page']['media']:
-                    title = media['title']['romaji'] if media['title']['romaji'] else media['title']['english']
-                    date = f"{media['startDate']['year']}-{media['startDate']['month']}-{media['startDate']['day']}"
-                    image = media['coverImage']['large']
-                    url = media['siteUrl']
-
-                    releases.append({
-                        "title": title,
-                        "date": date,
-                        "image": image,
-                        "url": url
-                    })
-
-                return releases
-            else:
-                print(f"Error fetching from Anilist API: {response.status}")
-                return []
+                            releases.append({
+                                "title": title,
+                                "date": date,
+                                "image": image,
+                                "url": url
+                            })
+                        return releases
+                    else:
+                        print("Anilist API response structure unexpected.")
+                        return []
+                else:
+                    error_text = await response.text()
+                    print(f"Error fetching from Anilist API: {response.status} - {error_text}")
+                    return []
+        except aiohttp.ClientError as e:
+            print(f"AIOHTTP Client Error: {e}")
+            return []
+        except Exception as e:
+            print(f"An unexpected error occurred during API request: {e}")
+            return []
 
 async def send_release_message(bot: Bot, channel_ids, release):
     """
